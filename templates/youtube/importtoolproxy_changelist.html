@@ -1,0 +1,508 @@
+{% extends "admin/change_list.html" %}
+{% load i18n admin_urls static %}
+
+{% block extrahead %}
+  {{ block.super }}
+  <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+{% endblock %}
+
+{% block content %}
+<div class="max-w-6xl mx-auto px-4 py-6 space-y-4 dark:bg-slate-900 dark:text-slate-100 rounded-lg">
+  <div class="flex items-center justify-between">
+    <div>
+      <h1 class="text-xl font-semibold">Import Tool Proxy</h1>
+      <p class="text-sm text-slate-600 dark:text-slate-300">Chọn file Excel, xem trước dữ liệu và chạy tool.</p>
+    </div>
+  </div>
+
+  <div class="bg-gray-100 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg p-4 space-y-3 shadow-sm">
+    <label class="block text-sm font-medium text-gray-700 dark:text-gray-200">Tải lên Excel (.xlsx)</label>
+    <div class="flex items-center gap-3">
+      <input id="excelFile" type="file" accept=".xlsx,.xls" 
+      class="block w-full text-sm text-gray-700 dark:text-gray-100 file:mr-4 
+      file:py-2 file:px-4 file:rounded-md file:border-0 file:text-sm 
+      file:font-semibold file:bg-gray-50 file:text-gray-700 hover:file:bg-gray-100 dark:hover:file:bg-gray-600
+      dark:file:bg-gray-700 dark:file:text-gray-100" />
+      <button id="resetBtn" type="button" class="ui-btn ui-btn-error hidden">Xóa</button>
+    </div>
+    <p id="fileInfo" class="text-xs text-gray-500 dark:text-gray-400">Chưa chọn file.</p>
+  </div>
+
+  <div id="previewCard" class="bg-gray-100 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg p-4 shadow-sm hidden">
+    <div class="flex items-center justify-between mb-3">
+      <div>
+        <div class="flex items-center gap-2 mb-1">
+          <h2 class="text-lg font-semibold">Xem trước dữ liệu</h2>
+          <span id="sheetName" class="ui-badge ui-badge-primary"></span>
+        </div>
+        <p class="text-xs text-gray-500 dark:text-gray-400">Hiển thị sheet đầu tiên, tối đa 200 dòng. Bạn có thể chỉnh sửa trực tiếp trong bảng.</p>
+      </div>
+      <div class="flex items-center gap-2">
+        <button id="addRowBtn" type="button" class="ui-btn ui-btn-success">+ Thêm dòng</button>
+      </div>
+    </div>
+    <div class="overflow-auto max-h-[480px] border border-gray-200 dark:border-gray-700 rounded-md">
+      <table class="min-w-full text-sm text-left">
+        <thead id="previewHead" class="bg-gray-100 dark:bg-gray-700"></thead>
+        <tbody id="previewBody" class="divide-y divide-gray-100 dark:divide-gray-700"></tbody>
+      </table>
+    </div>
+  </div>
+
+  <div class="flex items-center justify-between gap-3">
+    <div class="flex items-center gap-4 flex-wrap">
+      <label for="maxWorkersInput" class="text-sm font-medium text-gray-700 dark:text-gray-200">Số thread tối đa:</label>
+      <input 
+        type="number" 
+        id="maxWorkersInput" 
+        min="1" 
+        max="100" 
+        value="30"
+        class="w-20 px-2 py-1 text-sm border border-gray-300 dark:border-gray-600 rounded-md bg-gray-100 dark:bg-gray-700 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500"
+      />
+      <label for="targetTotalInput" class="text-sm font-medium text-gray-700 dark:text-gray-200 whitespace-nowrap">Số video tối thiểu:</label>
+      <input 
+        type="number" 
+        id="targetTotalInput" 
+        min="1" 
+        value="100"
+        class="w-24 px-2 py-1 text-sm border border-gray-300 dark:border-gray-600 rounded-md bg-gray-100 dark:bg-gray-700 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500"
+      />
+    </div>
+    <div class="flex items-center gap-3">
+      <button id="gpmBtn" type="button" class="ui-btn ui-btn-primary">Lấy dữ liệu từ GPM</button>
+      <button id="runBtn" type="button" disabled class="ui-btn ui-btn-success">Bắt đầu chạy tool</button>
+    </div>
+  </div>
+
+  <!-- Jobs Status Section -->
+  <div id="jobsStatusCard" class="bg-gray-100 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg p-4 shadow-sm hidden">
+    <div class="flex items-center justify-between mb-3">
+      <div>
+        <h2 class="text-lg font-semibold">Trạng thái Jobs</h2>
+        <p class="text-xs text-gray-500 dark:text-gray-400">Theo dõi tiến trình chạy tool realtime</p>
+      </div>
+      <div id="jobsStats" class="flex items-center gap-2 text-sm">
+        <span class="ui-badge ui-badge-primary">
+          <span id="statsPending">0</span> Đang chờ
+        </span>
+        <span class="ui-badge ui-badge-warning">
+          <span id="statsRunning">0</span> Đang chạy
+        </span>
+        <span class="ui-badge ui-badge-success">
+          <span id="statsSuccess">0</span> Thành công
+        </span>
+        <span class="ui-badge ui-badge-error">
+          <span id="statsFailed">0</span> Thất bại
+        </span>
+      </div>
+    </div>
+    <div class="overflow-auto max-h-[400px] border border-gray-200 dark:border-gray-700 rounded-md">
+      <table class="min-w-full text-sm">
+        <thead class="bg-gray-100 dark:bg-gray-700">
+          <tr>
+            <th class="px-3 py-2 text-left font-semibold text-gray-700 dark:text-gray-100">Profile</th>
+            <th class="px-3 py-2 text-left font-semibold text-gray-700 dark:text-gray-100">Keyword</th>
+            <th class="px-3 py-2 text-left font-semibold text-gray-700 dark:text-gray-100">Trạng thái</th>
+            <th class="px-3 py-2 text-left font-semibold text-gray-700 dark:text-gray-100">Lỗi</th>
+          </tr>
+        </thead>
+        <tbody id="jobsStatusBody" class="divide-y divide-gray-100 dark:divide-gray-700">
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+<script>
+  const fileInput = document.getElementById('excelFile');
+  const fileInfo = document.getElementById('fileInfo');
+  const resetBtn = document.getElementById('resetBtn');
+  const runBtn = document.getElementById('runBtn');
+  const previewCard = document.getElementById('previewCard');
+  const previewHead = document.getElementById('previewHead');
+  const previewBody = document.getElementById('previewBody');
+  const sheetName = document.getElementById('sheetName');
+  const gpmBtn = document.getElementById('gpmBtn');
+  const addRowBtn = document.getElementById('addRowBtn');
+  const jobsStatusCard = document.getElementById('jobsStatusCard');
+  const jobsStatusBody = document.getElementById('jobsStatusBody');
+  const maxWorkersInput = document.getElementById('maxWorkersInput');
+  const targetTotalInput = document.getElementById('targetTotalInput');
+  let rowsAll = [];
+  let fileName = '';
+  let headers = [];
+  let currentSessionId = null;
+  let statusPollInterval = null;
+
+  const resetPreview = () => {
+    previewHead.innerHTML = '';
+    previewBody.innerHTML = '';
+    previewCard.classList.add('hidden');
+    resetBtn.classList.add('hidden'); // Ẩn nút Xóa khi không có preview
+    runBtn.disabled = true;
+    runBtn.classList.add('cursor-not-allowed');
+    fileInfo.textContent = 'Chưa chọn file.';
+    sheetName.textContent = '';
+    rowsAll = [];
+    fileName = '';
+    headers = [];
+    
+    // Dừng polling và ẩn jobs status
+    if (statusPollInterval) {
+      clearInterval(statusPollInterval);
+      statusPollInterval = null;
+    }
+    jobsStatusCard.classList.add('hidden');
+    currentSessionId = null;
+    jobsStatusBody.innerHTML = '';
+  };
+
+  resetBtn.addEventListener('click', () => {
+    fileInput.value = '';
+    resetPreview();
+  });
+
+  const checkEmptyRows = () => {
+    if (!rowsAll || rowsAll.length === 0) {
+      runBtn.disabled = true;
+      runBtn.classList.add('cursor-not-allowed');
+      return;
+    }
+    
+    // Kiểm tra xem có dòng nào trống hoàn toàn không
+    const hasEmptyRow = rowsAll.some(row => {
+      if (!row) return true;
+      // Kiểm tra tất cả các giá trị trong row có rỗng không
+      return Object.values(row).every(val => !val || val.toString().trim() === '');
+    });
+    
+    if (hasEmptyRow) {
+      runBtn.disabled = true;
+      runBtn.classList.add('cursor-not-allowed');
+    } else {
+      runBtn.disabled = false;
+      runBtn.classList.remove('cursor-not-allowed');
+    }
+  };
+
+  const attachCellListeners = () => {
+    previewBody.querySelectorAll('td[contenteditable="true"]').forEach(td => {
+      // Xóa listener cũ nếu có
+      const newTd = td.cloneNode(true);
+      td.parentNode.replaceChild(newTd, td);
+      
+      newTd.addEventListener('blur', (e) => {
+        const rowIdx = Number(e.target.dataset.row);
+        const key = e.target.dataset.key;
+        if (rowIdx >= 0 && rowIdx < rowsAll.length) {
+          if (!rowsAll[rowIdx]) rowsAll[rowIdx] = {};
+          rowsAll[rowIdx][key] = e.target.textContent.trim();
+        }
+        checkEmptyRows(); // Kiểm tra lại sau khi sửa
+      });
+    });
+  };
+
+  const attachDeleteListeners = () => {
+    previewBody.querySelectorAll('.deleteRowBtn').forEach(btn => {
+      btn.addEventListener('click', (e) => {
+        const rowIdx = Number(e.target.dataset.rowIndex);
+        deleteRow(rowIdx);
+      });
+    });
+  };
+
+  const deleteRow = (rowIdx) => {
+    if (rowIdx < 0 || rowIdx >= rowsAll.length) return;
+    
+    if (!confirm('Bạn có chắc muốn xóa dòng này?')) {
+      return;
+    }
+    
+    // Xóa dòng khỏi rowsAll
+    rowsAll.splice(rowIdx, 1);
+    
+    // Re-render table với dữ liệu mới (giữ nguyên fileName để biết có phải từ GPM không)
+    if (rowsAll.length > 0) {
+      renderTable(rowsAll);
+    } else {
+      // Nếu không còn dữ liệu, reset preview
+      resetPreview();
+    }
+  };
+
+  const renderTable = (data) => {
+    // Nếu data là slice, cập nhật rowsAll trước
+    // Nếu không, dùng rowsAll trực tiếp
+    if (!rowsAll || rowsAll.length === 0) {
+      previewCard.classList.add('hidden');
+      runBtn.disabled = true;
+      headers = [];
+      return;
+    }
+
+    headers = Object.keys(rowsAll[0]);
+    
+    // Kiểm tra xem có dữ liệu từ file excel hoặc GPM không (có fileName)
+    const hasData = fileName && fileName !== '';
+    
+    // Thêm cột "Xóa" vào header chỉ khi có dữ liệu
+    const actionHeader = hasData ? '<th class="px-3 py-2 font-semibold text-gray-700 dark:text-gray-100 border-b border-gray-200 dark:border-gray-700 w-20">Thao tác</th>' : '';
+    previewHead.innerHTML = '<tr>' + 
+      headers.map(h => `<th class="px-3 py-2 font-semibold text-gray-700 dark:text-gray-100 border-b border-gray-200 dark:border-gray-700">${h}</th>`).join('') + 
+      actionHeader +
+      '</tr>';
+
+    // Render từ rowsAll gốc, chỉ hiển thị 200 dòng đầu
+    const displayRows = rowsAll.slice(0, 200);
+    previewBody.innerHTML = displayRows.map((row, idx) => {
+      const cells = headers.map(h => {
+        const val = row[h] ?? '';
+        return `<td data-row="${idx}" data-key="${h}" contenteditable="true" class="px-3 py-2 text-gray-700 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500/40 rounded-sm">${val}</td>`;
+      }).join('');
+      
+      // Chỉ hiển thị nút xóa khi có dữ liệu từ file
+      const deleteButton = hasData ? `<td class="px-3 py-2 text-center"><button data-row-index="${idx}" class="deleteRowBtn px-2 py-1 text-xs rounded bg-red-100 dark:bg-red-900/40 text-red-700 dark:text-red-200 hover:bg-red-200 dark:hover:bg-red-900/60">Xóa</button></td>` : '';
+      return `<tr data-row-index="${idx}">${cells}${deleteButton}</tr>`;
+    }).join('');
+
+    attachCellListeners();
+    if (hasData) {
+      attachDeleteListeners();
+    }
+
+    previewCard.classList.remove('hidden');
+    resetBtn.classList.remove('hidden'); // Hiển thị nút Xóa khi có preview
+    checkEmptyRows(); // Kiểm tra dòng trống
+  };
+
+  const addNewRow = () => {
+    // Kiểm tra dòng cuối cùng có trống hoàn toàn không
+    if (rowsAll.length > 0) {
+      const lastRow = rowsAll[rowsAll.length - 1];
+      const isLastRowEmpty = !lastRow || Object.values(lastRow).every(val => !val || val.toString().trim() === '');
+      
+      if (isLastRowEmpty) {
+        alert('Vui lòng điền ít nhất một ô trong dòng cuối cùng trước khi thêm dòng mới.');
+        return;
+      }
+    }
+    
+    if (!headers || headers.length === 0) {
+      // Nếu chưa có headers, tạo headers mặc định
+      headers = ['profile_id', 'name', 'keyword', 'playlist_title'];
+    }
+    
+    const newRow = {};
+    headers.forEach(h => newRow[h] = '');
+    rowsAll.push(newRow);
+    
+    // Re-render table để có nút xóa
+    renderTable(rowsAll);
+    
+    // Scroll to new row và focus
+    const rowIdx = rowsAll.length - 1;
+    const newRowEl = previewBody.querySelector(`tr[data-row-index="${rowIdx}"]`);
+    if (newRowEl) {
+      newRowEl.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+      // Focus vào ô đầu tiên có thể edit được
+      const firstEditableCell = newRowEl.querySelector('td[contenteditable="true"]');
+      if (firstEditableCell) {
+        setTimeout(() => firstEditableCell.focus(), 100);
+      }
+    }
+  };
+
+  addRowBtn.addEventListener('click', addNewRow);
+
+  fileInput.addEventListener('change', (e) => {
+    const file = e.target.files[0];
+    if (!file) {
+      resetPreview();
+      return;
+    }
+    fileName = file.name;
+    fileInfo.textContent = `Đã chọn: ${file.name} (${Math.round(file.size / 1024)} KB)`;
+
+    const reader = new FileReader();
+    reader.onload = (evt) => {
+      const data = new Uint8Array(evt.target.result);
+      const workbook = XLSX.read(data, { type: 'array' });
+      const firstSheet = workbook.SheetNames[0];
+      const sheet = workbook.Sheets[firstSheet];
+      const json = XLSX.utils.sheet_to_json(sheet, { defval: '', raw: false });
+      rowsAll = json; // lưu full dữ liệu để gửi backend
+      sheetName.textContent = `Sheet: ${firstSheet}`;
+      renderTable(rowsAll);
+    };
+    reader.readAsArrayBuffer(file);
+  });
+
+  const updateJobsStatus = () => {
+    if (!currentSessionId) return;
+    
+    const csrftoken = document.cookie.split('; ').find(r => r.startsWith('csrftoken='))?.split('=')[1] || '';
+    fetch(`{% url 'youtube:get_jobs_status' %}?session_id=${currentSessionId}`, {
+      headers: {
+        'X-CSRFToken': csrftoken,
+      },
+    })
+      .then(res => res.json())
+      .then(data => {
+        if (data?.success) {
+          renderJobsStatus(data.jobs, data.stats);
+          
+          // Nếu tất cả jobs đã hoàn thành (không còn pending hoặc running), dừng polling
+          if (data.stats.pending === 0 && data.stats.running === 0) {
+            if (statusPollInterval) {
+              clearInterval(statusPollInterval);
+              statusPollInterval = null;
+            }
+            runBtn.disabled = false;
+            runBtn.textContent = 'Bắt đầu chạy tool';
+          }
+        }
+      })
+      .catch(err => {
+        console.error('Lỗi khi lấy status:', err);
+      });
+  };
+
+  const renderJobsStatus = (jobs, stats) => {
+    // Cập nhật stats
+    document.getElementById('statsPending').textContent = stats.pending || 0;
+    document.getElementById('statsRunning').textContent = stats.running || 0;
+    document.getElementById('statsSuccess').textContent = stats.success || 0;
+    document.getElementById('statsFailed').textContent = stats.failed || 0;
+    
+    // Render danh sách jobs
+    jobsStatusBody.innerHTML = jobs.map(job => {
+      const statusClass = {
+        'pending': 'ui-badge ui-badge-primary',
+        'running': 'ui-badge ui-badge-warning',
+        'success': 'ui-badge ui-badge-success',
+        'failed': 'ui-badge ui-badge-error',
+        'unknown': 'ui-badge ui-badge-secondary',
+      }[job.status] || 'ui-badge ui-badge-secondary';
+      
+      const statusText = {
+        'pending': '⏳ Đang chờ',
+        'running': '🔄 Đang chạy',
+        'success': '✅ Thành công',
+        'failed': '❌ Thất bại',
+        'unknown': '❓ Không xác định',
+      }[job.status] || job.status;
+      
+      return `
+        <tr class="hover:bg-gray-50 dark:hover:bg-gray-700/50">
+          <td class="px-3 py-2 text-gray-700 dark:text-gray-100">${job.name || job.profile_id || '-'}</td>
+          <td class="px-3 py-2 text-gray-700 dark:text-gray-100">${job.keyword || '-'}</td>
+          <td class="px-3 py-2">
+            <span class="px-2 py-1 rounded text-xs font-medium ${statusClass}">${statusText}</span>
+          </td>
+          <td class="px-3 py-2 text-xs text-red-600 dark:text-red-400">${job.error || '-'}</td>
+        </tr>
+      `;
+    }).join('');
+  };
+
+  runBtn.addEventListener('click', () => {
+    if (runBtn.disabled) return;
+    const csrftoken = document.cookie.split('; ').find(r => r.startsWith('csrftoken='))?.split('=')[1] || '';
+    runBtn.disabled = true;
+    runBtn.textContent = 'Đang gửi...';
+    
+    // Dừng polling cũ nếu có
+    if (statusPollInterval) {
+      clearInterval(statusPollInterval);
+      statusPollInterval = null;
+    }
+
+    fetch("{% url 'youtube:import_tool_run' %}", {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-CSRFToken': csrftoken,
+      },
+      body: JSON.stringify({
+        filename: fileName,
+        rows: rowsAll,
+        max_workers: parseInt(maxWorkersInput.value) || 30,
+        target_total: parseInt(targetTotalInput.value) || 100,
+      }),
+    }).then(res => res.json())
+      .then(data => {
+        if (data?.success) {
+          // Lưu session_id và bắt đầu tracking
+          currentSessionId = data.session_id;
+          jobsStatusCard.classList.remove('hidden');
+          
+          // Hiển thị loading ban đầu
+          jobsStatusBody.innerHTML = `
+            <tr>
+              <td colspan="4" class="px-3 py-4 text-center text-gray-500 dark:text-gray-400">
+                Đang khởi tạo jobs...
+              </td>
+            </tr>
+          `;
+          
+          // Bắt đầu polling để cập nhật status
+          updateJobsStatus(); // Gọi ngay lập tức
+          statusPollInterval = setInterval(updateJobsStatus, 2000); // Poll mỗi 2 giây
+          
+          runBtn.textContent = 'Đang chạy...';
+        } else {
+          alert(data?.error || 'Có lỗi xảy ra.');
+          runBtn.disabled = false;
+          runBtn.textContent = 'Bắt đầu chạy tool';
+        }
+      })
+      .catch(() => {
+        alert('Có lỗi kết nối máy chủ.');
+        runBtn.disabled = false;
+        runBtn.textContent = 'Bắt đầu chạy tool';
+      });
+  });
+
+  // Nút lấy dữ liệu từ GPM (placeholder)
+  gpmBtn.addEventListener('click', () => {
+    get_data_gpm();
+  });
+
+  function get_data_gpm() {
+    gpmBtn.disabled = true;
+    gpmBtn.textContent = 'Đang lấy...';
+    const csrftoken = document.cookie.split('; ').find(r => r.startsWith('csrftoken='))?.split('=')[1] || '';
+    fetch("{% url 'youtube:get_data_gpm' %}", {
+      headers: {
+        'X-CSRFToken': csrftoken,
+      },
+    })
+      .then(res => res.json())
+      .then(resp => {
+        if (!resp?.success || !Array.isArray(resp.data)) {
+          alert('Không lấy được dữ liệu GPM.');
+          return;
+        }
+        const data = resp.data.map(item => ({
+          profile_id: item.id,
+          name: item.name,
+          keyword: '',
+          playlist_title: '',
+        }));
+        rowsAll = data;
+        fileName = 'gpm_profiles';
+        sheetName.textContent = 'GPM profiles';
+        renderTable(rowsAll);
+        fileInfo.textContent = `Đã nạp ${rowsAll.length} profile từ GPM. Vui lòng nhập keyword/playlist_title trước khi chạy.`;
+        checkEmptyRows(); // Kiểm tra dòng trống
+      })
+      .catch(() => alert('Lỗi kết nối GPM.'))
+      .finally(() => {
+        gpmBtn.disabled = false;
+        gpmBtn.textContent = 'Lấy dữ liệu từ GPM';
+      });
+  }
+</script>
+{% endblock %}

@@ -1,0 +1,61 @@
+{% extends "admin/change_list.html" %}
+{% load i18n admin_urls static %}
+
+{% block extrahead %}
+  {{ block.super }}
+{% endblock %}
+
+{% block content %}
+<div class="mt-4 p-4 bg-gray-100 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg shadow-sm">
+  <div class="flex items-center justify-between">
+    <div>
+      <h3 class="text-sm font-semibold text-gray-700 dark:text-gray-200">Import từ GPM</h3>
+      <p class="text-xs text-gray-500 dark:text-gray-400 mt-1">Lấy danh sách profiles từ GPM và import vào database.</p>
+    </div>
+    <button id="importGpmBtn" type="button" class="px-4 py-2 rounded-md text-sm font-semibold border border-blue-200 dark:border-blue-700 bg-blue-50 dark:bg-blue-900/40 text-blue-700 dark:text-blue-200 hover:bg-blue-100 dark:hover:bg-blue-900/60">
+      Import từ GPM
+    </button>
+  </div>
+</div>
+{{ block.super }}
+
+
+
+<script>
+  const importGpmBtn = document.getElementById('importGpmBtn');
+  
+  importGpmBtn.addEventListener('click', () => {
+    if (!confirm('Bạn có chắc muốn import tất cả profiles từ GPM vào database? Các profile đã tồn tại sẽ được cập nhật.')) {
+      return;
+    }
+    
+    importGpmBtn.disabled = true;
+    importGpmBtn.textContent = 'Đang import...';
+    const csrftoken = document.cookie.split('; ').find(r => r.startsWith('csrftoken='))?.split('=')[1] || '';
+    
+    fetch("{% url 'youtube:import_gpm_profiles' %}", {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-CSRFToken': csrftoken,
+      },
+    })
+      .then(res => res.json())
+      .then(data => {
+        if (data?.success) {
+          alert(`Import thành công! Đã import ${data.created || 0} profile mới, cập nhật ${data.updated || 0} profile.`);
+          // Reload trang để hiển thị dữ liệu mới
+          window.location.reload();
+        } else {
+          alert(data?.error || 'Có lỗi xảy ra khi import.');
+        }
+      })
+      .catch(() => alert('Có lỗi kết nối máy chủ.'))
+      .finally(() => {
+        importGpmBtn.disabled = false;
+        importGpmBtn.textContent = 'Import từ GPM';
+      });
+  });
+</script>
+{% endblock %}
+

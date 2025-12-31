@@ -1,0 +1,340 @@
+{% extends "admin/change_form.html" %}
+{% load i18n admin_urls static %}
+
+{% block extrahead %}
+  {{ block.super }}
+{% endblock %}
+
+{% block content %}
+<div class="mt-4 p-4 bg-gray-100 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg">
+    <button 
+      id="openDialogBtn" 
+      type="button"
+      class="px-4 py-2 text-sm font-semibold text-white bg-blue-600 hover:bg-blue-700 rounded-md"
+    >
+      🚀 Chạy Tool cho Profile này
+    </button>
+  </div>
+{{ block.super }}
+
+<!-- Dialog để nhập keyword và playlist_title -->
+<div id="runToolDialog" class="hidden fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center">
+  <div class="bg-gray-100 dark:bg-gray-800 rounded-lg p-6 max-w-md w-full mx-4 shadow-xl">
+    <div class="flex items-center justify-between mb-4">
+      <h3 class="text-lg font-semibold text-gray-900 dark:text-gray-100">Chạy Tool cho Profile</h3>
+      <button id="closeDialogBtn" class="text-gray-400 hover:text-gray-600 dark:hover:text-gray-200">
+        <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
+        </svg>
+      </button>
+    </div>
+    
+    <form id="runToolForm">
+      <div class="mb-4">
+        <label for="keywordInput" class="block text-sm font-medium text-gray-700 dark:text-gray-200 mb-2">
+          Keyword <span class="text-red-500">*</span>
+        </label>
+        <input 
+          type="text" 
+          id="keywordInput" 
+          required
+          class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-gray-100 dark:bg-gray-700 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500"
+          placeholder="Nhập keyword..."
+        />
+      </div>
+      
+      <div class="mb-4">
+        <label for="targetTotalInput" class="block text-sm font-medium text-gray-700 dark:text-gray-200 mb-2">
+          Số video tối thiểu (mặc định 100)
+        </label>
+        <input 
+          type="number" 
+          id="targetTotalInput" 
+          min="1" 
+          value="100"
+          class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-gray-100 dark:bg-gray-700 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500"
+          placeholder="Nhập số video cần load trước khi dừng scroll..."
+        />
+      </div>
+
+      <div class="mb-4">
+        <label for="playlistTitleInput" class="block text-sm font-medium text-gray-700 dark:text-gray-200 mb-2">
+          Playlist Title (Tùy chọn)
+        </label>
+        <input 
+          type="text" 
+          id="playlistTitleInput" 
+          class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-gray-100 dark:bg-gray-700 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500"
+          placeholder="Nhập tên playlist (nếu có)..."
+        />
+      </div>
+
+      <!-- Status Display -->
+      <div id="statusContainer" class="mb-4 hidden">
+        <div class="p-3 rounded-md border" id="statusBox">
+          <div class="flex items-center gap-2">
+            <div id="statusSpinner" class="hidden animate-spin rounded-full h-4 w-4 border-2 border-blue-600 border-t-transparent"></div>
+            <p id="statusText" class="text-sm font-medium"></p>
+          </div>
+          <p id="statusError" class="text-xs text-red-600 dark:text-red-400 mt-1 hidden"></p>
+        </div>
+      </div>
+      
+      <div class="flex items-center justify-end gap-3">
+        <button 
+          type="button" 
+          id="cancelBtn"
+          class="px-4 py-2 text-sm font-medium text-gray-700 dark:text-gray-200 bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 rounded-md"
+        >
+          Hủy
+        </button>
+        <button 
+          type="submit" 
+          id="runToolBtn"
+          class="px-4 py-2 text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 rounded-md disabled:opacity-50 disabled:cursor-not-allowed"
+        >
+          Chạy Tool
+        </button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<!-- Nút mở dialog -->
+
+
+<script>
+  const openDialogBtn = document.getElementById('openDialogBtn');
+  const runToolDialog = document.getElementById('runToolDialog');
+  const closeDialogBtn = document.getElementById('closeDialogBtn');
+  const cancelBtn = document.getElementById('cancelBtn');
+  const runToolForm = document.getElementById('runToolForm');
+  const keywordInput = document.getElementById('keywordInput');
+  const playlistTitleInput = document.getElementById('playlistTitleInput');
+  const runToolBtn = document.getElementById('runToolBtn');
+  const targetTotalInput = document.getElementById('targetTotalInput');
+
+  // Lấy profile ID từ URL hoặc từ object_id
+  let profileId = null;
+  const urlParts = window.location.pathname.split('/').filter(p => p);
+  // Tìm phần chứa số (ID) trong URL
+  for (let i = urlParts.length - 1; i >= 0; i--) {
+    if (/^\d+$/.test(urlParts[i])) {
+      profileId = urlParts[i];
+      break;
+    }
+  }
+  
+  // Nếu không tìm thấy, thử lấy từ form
+  if (!profileId) {
+    const form = document.querySelector('form');
+    if (form && form.action) {
+      const match = form.action.match(/\/(\d+)\//);
+      if (match) {
+        profileId = match[1];
+      }
+    }
+  }
+
+  function openDialog() {
+    runToolDialog.classList.remove('hidden');
+    keywordInput.focus();
+  }
+
+  function closeDialog(force = false) {
+    // Không cho đóng nếu đang chạy (trừ khi force)
+    if (!force && statusPollInterval) {
+      const jobStatus = document.getElementById('statusText').textContent;
+      if (jobStatus.includes('Đang') || jobStatus.includes('running') || jobStatus.includes('pending')) {
+        if (!confirm('Tool đang chạy. Bạn có chắc muốn đóng dialog? (Tool vẫn sẽ chạy nền)')) {
+          return;
+        }
+      }
+    }
+    
+    runToolDialog.classList.add('hidden');
+    runToolForm.reset();
+    // Reset status
+    const statusContainer = document.getElementById('statusContainer');
+    const statusBox = document.getElementById('statusBox');
+    const statusText = document.getElementById('statusText');
+    const statusError = document.getElementById('statusError');
+    const statusSpinner = document.getElementById('statusSpinner');
+    
+    statusContainer.classList.add('hidden');
+    statusBox.className = 'p-3 rounded-md border';
+    statusText.textContent = '';
+    statusError.classList.add('hidden');
+    statusError.textContent = '';
+    statusSpinner.classList.add('hidden');
+    
+    // Dừng polling nếu có
+    if (statusPollInterval) {
+      clearInterval(statusPollInterval);
+      statusPollInterval = null;
+    }
+    
+    currentJobId = null;
+    runToolBtn.disabled = false;
+    runToolBtn.textContent = 'Chạy Tool';
+  }
+
+  let currentJobId = null;
+  let statusPollInterval = null;
+
+  function updateStatus(status, message, error = null) {
+    const statusContainer = document.getElementById('statusContainer');
+    const statusBox = document.getElementById('statusBox');
+    const statusText = document.getElementById('statusText');
+    const statusError = document.getElementById('statusError');
+    const statusSpinner = document.getElementById('statusSpinner');
+    
+    statusContainer.classList.remove('hidden');
+    statusText.textContent = message;
+    
+    // Reset classes
+    statusBox.className = 'p-3 rounded-md border';
+    statusError.classList.add('hidden');
+    statusSpinner.classList.add('hidden');
+    
+    if (status === 'pending' || status === 'running') {
+      statusBox.classList.add('bg-blue-50', 'dark:bg-blue-900/20', 'border-blue-200', 'dark:border-blue-800');
+      statusText.classList.add('text-blue-700', 'dark:text-blue-300');
+      statusSpinner.classList.remove('hidden');
+    } else if (status === 'success') {
+      statusBox.classList.add('bg-green-50', 'dark:bg-green-900/20', 'border-green-200', 'dark:border-green-800');
+      statusText.classList.add('text-green-700', 'dark:text-green-300');
+      statusSpinner.classList.add('hidden');
+    } else if (status === 'failed') {
+      statusBox.classList.add('bg-red-50', 'dark:bg-red-900/20', 'border-red-200', 'dark:border-red-800');
+      statusText.classList.add('text-red-700', 'dark:text-red-300');
+      statusError.textContent = error || 'Có lỗi xảy ra';
+      statusError.classList.remove('hidden');
+      statusSpinner.classList.add('hidden');
+    }
+  }
+
+  function checkJobStatus(jobId) {
+    if (!jobId) return;
+    
+    const csrftoken = document.cookie.split('; ').find(r => r.startsWith('csrftoken='))?.split('=')[1] || '';
+    
+    fetch(`{% url 'youtube:get_jobs_status' %}?job_ids=${jobId}`, {
+      headers: {
+        'X-CSRFToken': csrftoken,
+      },
+    })
+      .then(res => res.json())
+      .then(data => {
+        if (data?.success && data.jobs && data.jobs.length > 0) {
+          const job = data.jobs[0];
+          
+          if (job.status === 'pending') {
+            updateStatus('pending', '⏳ Đang khởi tạo job...');
+          } else if (job.status === 'running') {
+            updateStatus('running', '🔄 Đang chạy tool...');
+          } else if (job.status === 'success') {
+            updateStatus('success', '✅ Tool chạy thành công!');
+            // Dừng polling
+            if (statusPollInterval) {
+              clearInterval(statusPollInterval);
+              statusPollInterval = null;
+            }
+            runToolBtn.disabled = false;
+            runToolBtn.textContent = 'Chạy Tool';
+            // Tự động đóng dialog sau 3 giây
+            setTimeout(() => {
+              closeDialog(true);
+            }, 3000);
+          } else if (job.status === 'failed') {
+            updateStatus('failed', '❌ Tool chạy thất bại!', job.error);
+            // Dừng polling
+            if (statusPollInterval) {
+              clearInterval(statusPollInterval);
+              statusPollInterval = null;
+            }
+            runToolBtn.disabled = false;
+            runToolBtn.textContent = 'Chạy Tool';
+          }
+        }
+      })
+      .catch(err => {
+        console.error('Lỗi khi check status:', err);
+      });
+  }
+
+  openDialogBtn.addEventListener('click', openDialog);
+  closeDialogBtn.addEventListener('click', closeDialog);
+  cancelBtn.addEventListener('click', closeDialog);
+
+  // Đóng dialog khi click bên ngoài
+  runToolDialog.addEventListener('click', (e) => {
+    if (e.target === runToolDialog) {
+      closeDialog();
+    }
+  });
+
+  runToolForm.addEventListener('submit', (e) => {
+    e.preventDefault();
+    
+    const keyword = keywordInput.value.trim();
+    const playlistTitle = playlistTitleInput.value.trim();
+    let targetTotal = parseInt(targetTotalInput.value, 10);
+    if (Number.isNaN(targetTotal) || targetTotal < 1) {
+      targetTotal = 100;
+    }
+    
+    if (!keyword) {
+      alert('Vui lòng nhập keyword!');
+      return;
+    }
+
+    // Dừng polling cũ nếu có
+    if (statusPollInterval) {
+      clearInterval(statusPollInterval);
+      statusPollInterval = null;
+    }
+
+    runToolBtn.disabled = true;
+    runToolBtn.textContent = 'Đang khởi tạo...';
+    updateStatus('pending', '⏳ Đang khởi tạo job...');
+    
+    const csrftoken = document.cookie.split('; ').find(r => r.startsWith('csrftoken='))?.split('=')[1] || '';
+    
+    fetch("{% url 'youtube:run_tool_for_profile' %}", {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-CSRFToken': csrftoken,
+      },
+      body: JSON.stringify({
+        profile_id: profileId,
+        keyword: keyword,
+        playlist_title: playlistTitle || null,
+        target_total: targetTotal,
+      }),
+    })
+      .then(res => res.json())
+      .then(data => {
+        if (data?.success) {
+          currentJobId = data.job_id;
+          // Bắt đầu polling để check status
+          checkJobStatus(currentJobId); // Check ngay lập tức
+          statusPollInterval = setInterval(() => {
+            checkJobStatus(currentJobId);
+          }, 2000); // Poll mỗi 2 giây
+        } else {
+          updateStatus('failed', '❌ Không thể khởi tạo job!', data?.error || 'Có lỗi xảy ra khi chạy tool.');
+          runToolBtn.disabled = false;
+          runToolBtn.textContent = 'Chạy Tool';
+        }
+      })
+      .catch(() => {
+        updateStatus('failed', '❌ Lỗi kết nối máy chủ!', 'Không thể kết nối đến server.');
+        runToolBtn.disabled = false;
+        runToolBtn.textContent = 'Chạy Tool';
+      });
+  });
+</script>
+{% endblock %}
+
