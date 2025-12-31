@@ -1,0 +1,136 @@
+/* =============================================
+   Performance & Core Web Vitals Optimization
+   ============================================= */
+
+/* ===== LAZY LOADING IMAGES ===== */
+img[loading="lazy"] {
+    opacity: 0;
+    transition: opacity 0.3s ease-in;
+}
+
+img[loading="lazy"].loaded {
+    opacity: 1;
+}
+
+/* ===== FONT OPTIMIZATION ===== */
+/* Preload critical fonts */
+@font-face {
+    font-family: 'Inter';
+    font-style: normal;
+    font-weight: 300 800;
+    font-display: swap; /* Prevent invisible text flash */
+    src: url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap');
+}
+
+/* ===== REDUCE LAYOUT SHIFT (CLS) ===== */
+/* Set aspect ratio for images */
+.img-container {
+    position: relative;
+    width: 100%;
+}
+
+.img-container::before {
+    content: "";
+    display: block;
+    padding-top: 56.25%; /* 16:9 aspect ratio */
+}
+
+.img-container img {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+}
+
+/* ===== OPTIMIZE ANIMATIONS ===== */
+/* Use will-change for animated elements */
+.animated-element {
+    will-change: transform, opacity;
+}
+
+/* Remove will-change after animation */
+.animated-element:not(.animating) {
+    will-change: auto;
+}
+
+/* ===== REDUCE REPAINTS ===== */
+/* Use transform instead of position for animations */
+.optimized-animation {
+    transform: translateZ(0); /* Hardware acceleration */
+    backface-visibility: hidden;
+}
+
+/* ===== CRITICAL CSS LOADING ===== */
+/* Inline critical CSS in head */
+/* Load non-critical CSS asynchronously */
+.defer-css {
+    media: print;
+    onload: "this.media='all'";
+}
+
+/* ===== REDUCE JAVASCRIPT BLOCKING ===== */
+/* Scripts should use defer or async */
+/* Priority: defer > async > blocking */
+
+/* ===== WEB VITALS MONITORING ===== */
+/* Add performance marks */
+performance.mark('page-start');
+performance.mark('page-end');
+performance.measure('page-load', 'page-start', 'page-end');
+
+/* ===== PRECONNECT TO EXTERNAL DOMAINS ===== */
+/* Already added in base.html:
+   - https://cdnjs.cloudflare.com
+   - https://unpkg.com
+   - https://fonts.googleapis.com
+*/
+
+/* ===== REDUCE CUMULATIVE LAYOUT SHIFT ===== */
+/* Reserve space for dynamic content */
+.skeleton-loader {
+    background: linear-gradient(
+        90deg,
+        rgba(255, 255, 255, 0.05) 25%,
+        rgba(255, 255, 255, 0.1) 50%,
+        rgba(255, 255, 255, 0.05) 75%
+    );
+    background-size: 200% 100%;
+    animation: skeleton-loading 1.5s infinite;
+}
+
+@keyframes skeleton-loading {
+    0% {
+        background-position: 200% 0;
+    }
+    100% {
+        background-position: -200% 0;
+    }
+}
+
+/* ===== OPTIMIZE SCROLLING ===== */
+/* Use passive scroll listeners (already in JS) */
+* {
+    scroll-behavior: smooth;
+}
+
+/* ===== REDUCE FIRST INPUT DELAY (FID) ===== */
+/* Break up long tasks */
+/* Use requestIdleCallback for non-critical work */
+
+/* ===== OPTIMIZE LARGEST CONTENTFUL PAINT (LCP) ===== */
+/* Optimize hero images */
+.hero-image {
+    content-visibility: auto; /* Render only when visible */
+}
+
+/* ===== RESOURCE HINTS ===== */
+/* Preload critical resources */
+/* <link rel="preload" as="image" href="hero.jpg"> */
+/* <link rel="prefetch" as="script" href="analytics.js"> */
+
+/* ===== MINIMIZE RENDER BLOCKING ===== */
+/* Inline critical CSS */
+/* Defer non-critical CSS */
+/* Load JavaScript with defer attribute */

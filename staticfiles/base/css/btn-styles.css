@@ -1,0 +1,62 @@
+.btn-view {
+    display: inline-block;
+    background-color: #ffffff;
+    border-radius: 20%;
+    border: 1px solid rgba(0, 0, 0, 0.2);
+    padding: 5px;
+    /* margin-right: 5px; */
+    /* margin-bottom: 5px; */
+    width: max-content;
+    height: max-content;
+}
+
+.btn-view:hover {
+    background-color: yellow;
+    border-color: #d58512;
+}
+
+.btn-view:active {
+    background-color: #449d44;
+    border-color: #398439;
+}
+
+/* button edit */
+
+
+.btn-edit {
+    display: inline-block;
+    background-color: aquamarine;
+    border-radius: 20%;
+    border: 1px solid rgba(0, 0, 0, 0.2);
+    padding: 5px;
+    /* margin-right: 5px;
+    margin-bottom: 5px; */
+    width: max-content;
+    height: max-content;
+}
+
+.btn-edit:hover {
+    background-color: #1fec74;
+    border-color: #12d560;
+}
+
+.btn-edit:active {
+    background-color: #ec971f;
+    border-color: #d58512;
+}
+
+/* button delete */
+.btn-delete {
+    display: inline-block;
+    background-color: #d9534f;
+    border: 1px solid rgba(0, 0, 0, 0.2);
+    border-radius: 20%;
+    padding: 5px;
+    width: max-content;
+    height: max-content;
+}
+
+.btn-delete:hover {
+    background-color: #f80b03;
+    border-color: #ac2925;
+}
